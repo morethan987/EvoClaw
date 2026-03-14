@@ -132,7 +132,7 @@ class AngelProcess:
         self.config: Config = config
         self.client: _AsyncOpenAIClientProtocol = AsyncOpenAI(
             api_key=config.angel_api_key,
-            base_url=config.llm_api_base,
+            base_url=config.angel_api_base,
         )
 
     async def generate_epitaph(
