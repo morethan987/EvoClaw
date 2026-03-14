@@ -11,6 +11,7 @@ class Config:
     shell_timeout: int = 300
     max_tool_iterations: int = 20
     llm_api_base: str = "https://api.deepseek.com"
+    angel_api_base: str = "https://api.deepseek.com"
     llm_api_key: str = ""
     llm_model: str = "deepseek-chat"
     angel_api_key: str = ""
@@ -38,6 +39,9 @@ def load_config(config_path: str = "config.toml") -> Config:
         world_dir=data.get("world_dir", "./world"),
         log_dir=data.get("log_dir", "./logs"),
         llm_api_base=os.environ.get("EVOCLAW_API_BASE", "https://api.deepseek.com"),
+        angel_api_base=os.environ.get(
+            "EVOCLAW_ANGEL_API_BASE", "https://api.deepseek.com"
+        ),
         llm_api_key=os.environ.get("EVOCLAW_API_KEY", ""),
         llm_model=os.environ.get("EVOCLAW_MODEL", "deepseek-chat"),
         angel_api_key=os.environ.get("EVOCLAW_ANGEL_API_KEY", ""),
