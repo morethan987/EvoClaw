@@ -16,7 +16,7 @@ EvoClaw 是一个自主运行的异步守护进程，通过 LLM API 调用（Dee
 
 ```
 src/evoclaw/
-  __main__.py      # CLI: start / init-world / stop
+  __main__.py      # CLI: start / init-world / stop / format-log
   config.py        # Config 数据类，加载 config.toml + 环境变量
   daemon.py        # Daemon — PID 文件、信号处理、心跳循环
   lifecycle.py     # 生命周期管理（代际追踪、死亡判定）、天使进程（墓志铭 + 转世）
@@ -76,6 +76,18 @@ nohup uv run --env-file .env evoclaw start > /dev/null 2>&1 &
 
 # 停止守护进程
 uv run --env-file .env evoclaw stop
+
+# 将 logs/god.jsonl 格式化为人类可读的时间线（支持颜色高亮）
+uv run evoclaw format-log
+
+# 只看第 5 代的日志
+uv run evoclaw format-log --generation 5
+
+# 关闭颜色（适合管道 / 文件重定向）
+uv run evoclaw format-log --no-color > timeline.txt
+
+# 指定其他路径
+uv run evoclaw format-log path/to/god.jsonl
 ```
 
 ## 环境变量

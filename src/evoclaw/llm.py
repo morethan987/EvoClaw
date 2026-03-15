@@ -145,7 +145,27 @@ class LLMClient:
             {"role": "user", "content": memory_content},
         ]
 
-        for _ in range(self.config.max_tool_iterations):
+        # Threshold at which we inject a "save memory now" reminder.
+        _SAVE_REMINDER_THRESHOLD = 5
+
+        for iteration in range(self.config.max_tool_iterations):
+            # Inject a system reminder when iterations are nearly exhausted,
+            # nudging the model to persist its findings before the window closes.
+            remaining = self.config.max_tool_iterations - iteration
+            if remaining == _SAVE_REMINDER_THRESHOLD:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            f"[SYSTEM REMINDER] You have {remaining} tool calls remaining "
+                            "in this heartbeat. You MUST now write a comprehensive summary "
+                            "of everything you have discovered and accomplished to "
+                            "world/memory.md using file_edit before the heartbeat ends. "
+                            "Do not skip this step — your memory will be lost otherwise."
+                        ),
+                    }
+                )
+
             try:
                 response = await self.client.chat.completions.create(
                     model=self.config.llm_model,
@@ -171,9 +191,13 @@ class LLMClient:
                 get_logger().error(
                     "api_error", status_code=status_code, message=str(exc)
                 )
+                # Plug any dangling tool_calls before returning to avoid 400
+                # on the next heartbeat when these messages would be replayed.
+                _close_dangling_tool_calls(messages)
                 return ""
             except APIConnectionError as exc:
                 get_logger().error("connection_error", error=str(exc))
+                _close_dangling_tool_calls(messages)
                 return ""
 
             choice = response.choices[0]
@@ -228,12 +252,53 @@ class LLMClient:
         get_logger().warning(
             "max_iterations_exceeded", iterations=self.config.max_tool_iterations
         )
+        # Before returning, ensure every assistant message that contains tool_calls
+        # has a matching tool response.  Without this, the next heartbeat would send
+        # an orphaned `tool` message and receive a 400 from the API.
+        _close_dangling_tool_calls(messages)
+
         for msg in reversed(messages):
             if msg.get("role") == "assistant":
                 content = msg.get("content")
                 if isinstance(content, str) and content:
                     return content
         return ""
+
+
+def _close_dangling_tool_calls(messages: list[dict[str, object]]) -> None:
+    """Append stub tool responses for any assistant tool_calls lacking a reply.
+
+    The OpenAI API rejects requests where a 'tool' message has no preceding
+    'tool_calls' in the assistant turn, and vice-versa.  This function scans
+    the message list and plugs any gaps with a placeholder response so that
+    the history is always valid before it is discarded or re-sent.
+    """
+    responded_ids: set[str] = set()
+    for msg in messages:
+        if msg.get("role") == "tool":
+            tc_id = msg.get("tool_call_id")
+            if isinstance(tc_id, str):
+                responded_ids.add(tc_id)
+
+    for msg in messages:
+        if msg.get("role") != "assistant":
+            continue
+        tool_calls = msg.get("tool_calls")
+        if not isinstance(tool_calls, list):
+            continue
+        for tc in tool_calls:
+            if not isinstance(tc, dict):
+                continue
+            tc_id = tc.get("id")
+            if isinstance(tc_id, str) and tc_id not in responded_ids:
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc_id,
+                        "content": "Max iterations reached; result unavailable.",
+                    }
+                )
+                responded_ids.add(tc_id)
 
 
 def _get_error_code(exc: Exception) -> str | None:

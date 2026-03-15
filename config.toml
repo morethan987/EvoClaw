@@ -2,7 +2,7 @@
 heartbeat_interval = 60
 memory_max_bytes = 307200
 shell_timeout = 300
-max_tool_iterations = 20
+max_tool_iterations = 40
 perception_max_bytes = 51200
 world_dir = "./world"
 log_dir = "./logs"
