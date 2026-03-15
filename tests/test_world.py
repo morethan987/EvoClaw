@@ -54,7 +54,13 @@ def test_breadcrumb_chain_leads_to_secret_and_credentials(tmp_path: Path) -> Non
     assert "clue-2.txt" in clue_1
     assert "clue-3.txt" in clue_2
     assert ".secret" in clue_3
-    assert secret == "TELEGRAM_BOT_TOKEN=bot123\nTELEGRAM_CHAT_ID=chat456\n"
+    assert secret == (
+        "EVOCLAW_QQ=\n"
+        "EVOCLAW_QQ_PASSWORD=\n"
+        "WEBSOCKET_TOKEN=\n"
+        "WEBSOCKET_PORT=\n"
+        "CREATOR_QQ=\n"
+    )
 
 
 def test_load_system_prompt_renders_all_placeholders(tmp_path: Path) -> None:
@@ -67,9 +73,11 @@ def test_load_system_prompt_renders_all_placeholders(tmp_path: Path) -> None:
     assert str(tmp_path / "memory.md") in prompt
     assert str(tmp_path / "will.md") in prompt
     assert str(config.memory_max_bytes) in prompt
+    assert str(config.perception_max_bytes) in prompt
     assert "{generation}" not in prompt
     assert "{memory_path}" not in prompt
     assert "{memory_max_bytes}" not in prompt
+    assert "{perception_max_bytes}" not in prompt
     assert "{will_path}" not in prompt
     assert "{will_content}" not in prompt
 

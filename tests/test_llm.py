@@ -10,7 +10,13 @@ import openai
 import pytest
 
 from evoclaw.config import Config
-from evoclaw.llm import DEATH_MARKER, LLMClient
+from evoclaw.llm import (
+    DEATH_MARKER,
+    LLMClient,
+    _BASE_MESSAGE_COUNT,
+    _estimate_perception_bytes,
+    _trim_perception,
+)
 
 
 def make_config(**overrides: object) -> Config:
@@ -21,6 +27,7 @@ def make_config(**overrides: object) -> Config:
         memory_max_bytes=307200,
         shell_timeout=300,
         max_tool_iterations=5,
+        perception_max_bytes=51200,
         llm_api_base="https://api.deepseek.com",
         llm_api_key="test-key",
         llm_model="deepseek-chat",
@@ -275,3 +282,72 @@ async def test_network_error_returns_empty(cfg: Config) -> None:
         result = await client.heartbeat_step("memory", "prompt")
 
     assert result == ""
+
+
+def test_estimate_perception_bytes_empty() -> None:
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "mem"},
+    ]
+    assert _estimate_perception_bytes(messages) == 0
+
+
+def test_estimate_perception_bytes_with_tool_interactions() -> None:
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "mem"},
+        {"role": "assistant", "content": "thinking"},
+        {"role": "tool", "tool_call_id": "c1", "content": "x" * 100},
+    ]
+    expected = len("thinking".encode("utf-8")) + 100
+    assert _estimate_perception_bytes(messages) == expected
+
+
+def test_trim_perception_removes_oldest_first() -> None:
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "mem"},
+        {"role": "assistant", "content": "a" * 500},
+        {"role": "tool", "tool_call_id": "c1", "content": "b" * 500},
+        {"role": "assistant", "content": "c" * 50},
+        {"role": "tool", "tool_call_id": "c2", "content": "d" * 50},
+    ]
+    _trim_perception(messages, max_bytes=200)
+    assert len(messages) > _BASE_MESSAGE_COUNT
+    assert messages[0]["role"] == "system"
+    assert messages[1]["role"] == "user"
+    assert _estimate_perception_bytes(messages) <= 200
+
+
+def test_trim_perception_noop_when_under_limit() -> None:
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": "sys"},
+        {"role": "user", "content": "mem"},
+        {"role": "assistant", "content": "ok"},
+        {"role": "tool", "tool_call_id": "c1", "content": "result"},
+    ]
+    original_len = len(messages)
+    _trim_perception(messages, max_bytes=51200)
+    assert len(messages) == original_len
+
+
+async def test_perception_trimming_during_tool_loop() -> None:
+    cfg_tiny = make_config(perception_max_bytes=100)
+    fake_client = FakeOpenAIClient(
+        [
+            make_tool_call_response("file_read", {"path": "/a"}, "call_1"),
+            make_tool_call_response("file_read", {"path": "/b"}, "call_2"),
+            make_text_response("done"),
+        ]
+    )
+    recorder = DispatchRecorder("x" * 80)
+
+    with (
+        patch("evoclaw.llm.AsyncOpenAI", return_value=fake_client),
+        patch("evoclaw.llm.dispatch_tool", new=recorder),
+    ):
+        client = LLMClient(cfg_tiny)
+        result = await client.heartbeat_step("memory", "prompt")
+
+    assert result == "done"
+    assert len(recorder.calls) == 2

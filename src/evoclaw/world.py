@@ -54,6 +54,7 @@ def load_system_prompt(config: Config, generation: int, will_content: str) -> st
         generation=generation,
         memory_path=memory_path,
         memory_max_bytes=config.memory_max_bytes,
+        perception_max_bytes=config.perception_max_bytes,
         will_path=will_path,
         will_content=will_content,
     )

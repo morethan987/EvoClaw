@@ -98,6 +98,38 @@ APIConnectionError = cast(type[Exception], getattr(openai, "APIConnectionError")
 
 DEATH_MARKER = "__DEATH__:balance_exhausted"
 
+# Indices of the base messages (system prompt + memory) that are never trimmed.
+_BASE_MESSAGE_COUNT = 2
+
+
+def _estimate_perception_bytes(messages: list[dict[str, object]]) -> int:
+    """Estimate byte size of tool-interaction messages (everything beyond the base pair)."""
+    total = 0
+    for msg in messages[_BASE_MESSAGE_COUNT:]:
+        content = msg.get("content")
+        if isinstance(content, str):
+            total += len(content.encode("utf-8"))
+        tool_calls = msg.get("tool_calls")
+        if isinstance(tool_calls, list):
+            for tc in tool_calls:
+                if isinstance(tc, dict):
+                    fn = tc.get("function")
+                    if isinstance(fn, dict):
+                        total += len(str(fn.get("arguments", "")).encode("utf-8"))
+    return total
+
+
+def _trim_perception(
+    messages: list[dict[str, object]], max_bytes: int
+) -> list[dict[str, object]]:
+    """Drop the oldest tool-interaction pairs until perception fits within budget."""
+    while (
+        len(messages) > _BASE_MESSAGE_COUNT
+        and _estimate_perception_bytes(messages) > max_bytes
+    ):
+        messages.pop(_BASE_MESSAGE_COUNT)
+    return messages
+
 
 class LLMClient:
     def __init__(self, config: Config) -> None:
@@ -190,6 +222,8 @@ class LLMClient:
                         "content": result,
                     }
                 )
+
+            _trim_perception(messages, self.config.perception_max_bytes)
 
         get_logger().warning(
             "max_iterations_exceeded", iterations=self.config.max_tool_iterations
