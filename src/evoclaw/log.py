@@ -23,7 +23,7 @@ def setup_logging(log_dir: str, generation: int) -> None:
         logger: object, method: str, event_dict: MutableMapping[str, object]
     ) -> MutableMapping[str, object]:
         _ = logger, method
-        line = json.dumps(event_dict) + "\n"
+        line = json.dumps(event_dict, ensure_ascii=False) + "\n"
         _ = sys.stdout.write(line)
         _ = sys.stdout.flush()
         _ = log_file.write(line)
