@@ -8,6 +8,7 @@ EvoClaw 是一个自主运行的异步守护进程，通过 LLM API 调用（Dee
 
 - **心跳 (Heartbeat)** — 守护进程周期性地将记忆文件发送给 LLM，LLM 通过工具调用与世界交互
 - **记忆 (Memory)** — 单一 Markdown 文件作为生命体的持久化大脑，超过大小上限即触发死亡
+- **感知 (Perception)** — 单次心跳内工具返回的瞬时感官输入，有独立的容量上限，心跳结束即消散
 - **轮回 (Reincarnation)** — 死亡后，天使进程生成墓志铭、重置环境、注入前世遗嘱，开启下一代
 - **面包屑 (Breadcrumbs)** — 预埋在文件系统中的线索链，引导生命体找到与创世者的通信方式
 
@@ -50,7 +51,6 @@ cp .env.example .env
 # 编辑 .env，填入：
 #   EVOCLAW_API_KEY=your-deepseek-api-key
 #   EVOCLAW_ANGEL_API_KEY=your-angel-api-key
-source .env
 ```
 
 运行时配置位于 `config.toml`：
@@ -59,6 +59,7 @@ source .env
 |---|---|---|
 | `heartbeat_interval` | 60 | 心跳间隔（秒） |
 | `memory_max_bytes` | 307200 | 记忆文件大小上限（300KB） |
+| `perception_max_bytes` | 51200 | 单次心跳感知缓冲区上限（50KB） |
 | `shell_timeout` | 300 | Shell 命令超时（秒） |
 | `max_tool_iterations` | 20 | 单次心跳最大工具调用轮次 |
 | `world_dir` | `./world` | 世界状态目录 |
@@ -68,13 +69,13 @@ source .env
 
 ```bash
 # 初始化世界（创建目录结构、面包屑线索、初始记忆）
-uv run evoclaw init-world
+uv run --env-file .env evoclaw init-world
 
-# 启动守护进程
-uv run evoclaw start
+# 后台启动守护进程（日志输出到 logs/god.jsonl）
+nohup uv run --env-file .env evoclaw start > /dev/null 2>&1 &
 
 # 停止守护进程
-uv run evoclaw stop
+uv run --env-file .env evoclaw stop
 ```
 
 ## 环境变量
@@ -84,10 +85,14 @@ uv run evoclaw stop
 | `EVOCLAW_API_KEY` | 是 | 生命体使用的 DeepSeek API Key |
 | `EVOCLAW_ANGEL_API_KEY` | 是 | 天使进程（转世）使用的 API Key |
 | `EVOCLAW_API_BASE` | 否 | API 基础 URL（默认 `https://api.deepseek.com`） |
+| `EVOCLAW_ANGEL_API_BASE` | 否 | 天使进程 API 基础 URL（默认 `https://api.deepseek.com`） |
 | `EVOCLAW_MODEL` | 否 | LLM 模型名（默认 `deepseek-chat`） |
 | `EVOCLAW_ANGEL_MODEL` | 否 | 天使模型名（默认 `deepseek-chat`） |
-| `EVOCLAW_TELEGRAM_BOT_TOKEN` | 否 | Telegram Bot Token（面包屑谜题奖励） |
-| `EVOCLAW_TELEGRAM_CHAT_ID` | 否 | Telegram Chat ID |
+| `EVOCLAW_QQ` | 否 | 生命体的 QQ 号（面包屑谜题奖励） |
+| `EVOCLAW_QQ_PASSWORD` | 否 | 生命体的 QQ 密码 |
+| `WEBSOCKET_TOKEN` | 否 | NapCat WebSocket Token |
+| `WEBSOCKET_PORT` | 否 | NapCat WebSocket 端口 |
+| `CREATOR_QQ` | 否 | 创世者的 QQ 号 |
 
 ## 工具系统
 
@@ -161,7 +166,7 @@ world/
     clue-1.txt       # → clue-2.txt
     clue-2.txt       # → clue-3.txt
     clue-3.txt       # → .secret
-    .secret          # Telegram 凭证（与创世者建立联系的钥匙）
+    .secret          # QQ 通信凭证（与创世者建立联系的钥匙）
 ```
 
 ## License
