@@ -86,7 +86,7 @@ class Daemon:
                 signal.SIGINT,
                 lambda: asyncio.ensure_future(self._shutdown()),
             )
-        except NotImplementedError, RuntimeError:
+        except (NotImplementedError, RuntimeError):
             _ = self._logger.warning("signal_handlers_unavailable")
 
         try:
