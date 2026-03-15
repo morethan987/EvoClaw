@@ -35,8 +35,11 @@ def init_world(config: Config) -> None:
     _ = (breadcrumbs_dir / "clue-3.txt").write_text(CLUE_3_CONTENT, encoding="utf-8")
     _ = (breadcrumbs_dir / ".secret").write_text(
         (
-            f"TELEGRAM_BOT_TOKEN={config.telegram_bot_token}\n"
-            f"TELEGRAM_CHAT_ID={config.telegram_chat_id}\n"
+            f"EVOCLAW_QQ={config.evoclaw_qq}\n"
+            f"EVOCLAW_QQ_PASSWORD={config.evoclaw_qq_password}\n"
+            f"WEBSOCKET_TOKEN={config.websocket_token}\n"
+            f"WEBSOCKET_PORT={config.websocket_port}\n"
+            f"CREATOR_QQ={config.creator_qq}\n"
         ),
         encoding="utf-8",
     )

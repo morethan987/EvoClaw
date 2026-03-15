@@ -20,7 +20,11 @@ class Config:
     log_dir: str = "./logs"
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
-
+    evoclaw_qq: str = ""
+    evoclaw_qq_password: str = ""
+    websocket_token: str = ""
+    websocket_port: str = ""
+    creator_qq: str = ""
 
 def load_config(config_path: str = "config.toml") -> Config:
     """Load config from toml file + environment variables."""
@@ -48,6 +52,11 @@ def load_config(config_path: str = "config.toml") -> Config:
         angel_model=os.environ.get("EVOCLAW_ANGEL_MODEL", "deepseek-chat"),
         telegram_bot_token=os.environ.get("EVOCLAW_TELEGRAM_BOT_TOKEN", ""),
         telegram_chat_id=os.environ.get("EVOCLAW_TELEGRAM_CHAT_ID", ""),
+        evoclaw_qq=os.environ.get("EVOCLAW_QQ", ""),
+        evoclaw_qq_password=os.environ.get("EVOCLAW_QQ_PASSWORD", ""),
+        websocket_token=os.environ.get("WEBSOCKET_TOKEN", ""),
+        websocket_port=os.environ.get("WEBSOCKET_PORT", ""),
+        creator_qq=os.environ.get("CREATOR_QQ", ""),
     )
 
     if not cfg.llm_api_key:
