@@ -127,6 +127,62 @@ async def test_shutdown_event_stops_loop(daemon_with_mocks: DaemonFixture):
     heartbeat_mock.assert_not_awaited()
 
 
+async def test_handle_death_with_backoff_calls_angel_on_first_death(
+    daemon_with_mocks: DaemonFixture,
+) -> None:
+    daemon, _, _, mock_angel = daemon_with_mocks
+
+    cooldown = await daemon._handle_death_with_backoff(
+        "balance_exhausted", current_backoff=0, backoff_max=3600
+    )
+
+    angel_mock = cast(AsyncMock, mock_angel.handle_death)
+    angel_mock.assert_awaited_once()
+    assert cooldown == daemon._config.heartbeat_interval * 2
+
+
+async def test_handle_death_with_backoff_skips_angel_on_repeat(
+    daemon_with_mocks: DaemonFixture,
+) -> None:
+    daemon, _, _, mock_angel = daemon_with_mocks
+
+    cooldown = await daemon._handle_death_with_backoff(
+        "balance_exhausted", current_backoff=60, backoff_max=3600
+    )
+
+    angel_mock = cast(AsyncMock, mock_angel.handle_death)
+    angel_mock.assert_not_awaited()
+    assert cooldown == 120
+
+
+async def test_handle_death_with_backoff_caps_at_max(
+    daemon_with_mocks: DaemonFixture,
+) -> None:
+    daemon, _, _, mock_angel = daemon_with_mocks
+
+    cooldown = await daemon._handle_death_with_backoff(
+        "balance_exhausted", current_backoff=2000, backoff_max=3600
+    )
+
+    angel_mock = cast(AsyncMock, mock_angel.handle_death)
+    angel_mock.assert_not_awaited()
+    assert cooldown == 3600
+
+
+async def test_handle_death_with_backoff_non_balance_always_calls_angel(
+    daemon_with_mocks: DaemonFixture,
+) -> None:
+    daemon, _, _, mock_angel = daemon_with_mocks
+
+    cooldown = await daemon._handle_death_with_backoff(
+        "memory_exceeded", current_backoff=9999, backoff_max=3600
+    )
+
+    angel_mock = cast(AsyncMock, mock_angel.handle_death)
+    angel_mock.assert_awaited_once()
+    assert cooldown == daemon._config.heartbeat_interval
+
+
 def test_cli_argparse_start(monkeypatch: pytest.MonkeyPatch):
     import evoclaw.__main__ as main_module
 

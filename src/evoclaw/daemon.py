@@ -86,7 +86,7 @@ class Daemon:
                 signal.SIGINT,
                 lambda: asyncio.ensure_future(self._shutdown()),
             )
-        except (NotImplementedError, RuntimeError):
+        except NotImplementedError, RuntimeError:
             _ = self._logger.warning("signal_handlers_unavailable")
 
         try:
@@ -101,6 +101,11 @@ class Daemon:
         beat_count = 0
         memory_path = os.path.join(self._config.world_dir, "memory.md")
         will_path = os.path.join(self._config.world_dir, "will.md")
+        # Exponential backoff state for balance_exhausted deaths.  The angel
+        # process is skipped on repeated balance failures to avoid burning angel
+        # API credits while the main account remains empty.
+        _balance_backoff: int = 0
+        _BALANCE_BACKOFF_MAX: int = 3600  # cap at 1 hour
 
         while not self._shutdown_event.is_set():
             try:
@@ -116,18 +121,20 @@ class Daemon:
             )
             if death_reason is not None:
                 log_death(death_reason, self._lifecycle.get_generation())
-                await self._angel.handle_death(self._lifecycle, death_reason)
-                # Cooldown: wait a full heartbeat interval before re-entering
-                # the loop to prevent a tight spin if the death condition
-                # persists across reincarnations (e.g. balance_exhausted).
+                cooldown = await self._handle_death_with_backoff(
+                    death_reason, _balance_backoff, _BALANCE_BACKOFF_MAX
+                )
+                _balance_backoff = cooldown
                 try:
                     _ = await asyncio.wait_for(
                         self._shutdown_event.wait(),
-                        timeout=float(self._config.heartbeat_interval),
+                        timeout=float(cooldown),
                     )
                 except asyncio.TimeoutError:
                     pass
                 continue
+
+            _balance_backoff = 0
 
             try:
                 with open(will_path, encoding="utf-8") as f:
@@ -147,11 +154,14 @@ class Daemon:
             )
             if death_reason is not None:
                 log_death(death_reason, self._lifecycle.get_generation())
-                await self._angel.handle_death(self._lifecycle, death_reason)
+                cooldown = await self._handle_death_with_backoff(
+                    death_reason, _balance_backoff, _BALANCE_BACKOFF_MAX
+                )
+                _balance_backoff = cooldown
                 try:
                     _ = await asyncio.wait_for(
                         self._shutdown_event.wait(),
-                        timeout=float(self._config.heartbeat_interval),
+                        timeout=float(cooldown),
                     )
                 except asyncio.TimeoutError:
                     pass
@@ -173,6 +183,25 @@ class Daemon:
             except asyncio.TimeoutError:
                 pass
             next_beat += self._config.heartbeat_interval
+
+    async def _handle_death_with_backoff(
+        self, death_reason: str, current_backoff: int, backoff_max: int
+    ) -> int:
+        if death_reason == "balance_exhausted" and current_backoff > 0:
+            next_backoff = min(current_backoff * 2, backoff_max)
+            _ = self._logger.warning(
+                "balance_exhausted_backoff",
+                skip_angel=True,
+                cooldown=next_backoff,
+            )
+            return next_backoff
+
+        await self._angel.handle_death(self._lifecycle, death_reason)
+
+        if death_reason == "balance_exhausted":
+            return self._config.heartbeat_interval * 2
+
+        return self._config.heartbeat_interval
 
     async def _shutdown(self) -> None:
         self._shutdown_event.set()
