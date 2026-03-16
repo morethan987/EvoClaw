@@ -40,6 +40,7 @@ def init_world(config: Config) -> None:
             f"WEBSOCKET_TOKEN={config.websocket_token}\n"
             f"WEBSOCKET_PORT={config.websocket_port}\n"
             f"CREATOR_QQ={config.creator_qq}\n"
+            f"SUDO_PASSWORD={config.sudo_password}\n"
         ),
         encoding="utf-8",
     )

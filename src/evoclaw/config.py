@@ -26,6 +26,7 @@ class Config:
     websocket_token: str = ""
     websocket_port: str = ""
     creator_qq: str = ""
+    sudo_password: str = ""
 
 
 def load_config(config_path: str = "config.toml") -> Config:
@@ -60,6 +61,7 @@ def load_config(config_path: str = "config.toml") -> Config:
         websocket_token=os.environ.get("WEBSOCKET_TOKEN", ""),
         websocket_port=os.environ.get("WEBSOCKET_PORT", ""),
         creator_qq=os.environ.get("CREATOR_QQ", ""),
+        sudo_password=os.environ.get("SUDO_PASSWORD", ""),
     )
 
     if not cfg.llm_api_key:
